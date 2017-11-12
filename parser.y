@@ -97,7 +97,7 @@
 Start : ClassList
 	;
 
-ClassList : Class ClassList | Class
+CClassList : Class ClassList | Class
 	;
 
 Class : T_ID T_LEFTBRACK MemberList MethodList T_RIGHTBRACK 
@@ -146,7 +146,7 @@ Declaration : Declaration T_COMMA T_ID | T_ID
 Statements : Statement Statements | %empty
 	;
 
-Statement : Assignment | IfElse | DoWhile | MethodCall | T_PRINT Expr T_SEMIC
+Statement : Assignment | IfElse | DoWhile | While| MethodCall | T_PRINT Expr T_SEMIC
 	;
 
 Assignment : T_ID T_EQUAL Expr T_SEMIC | T_ID T_DOT T_ID T_EQUAL Expr T_SEMIC
@@ -156,8 +156,10 @@ IfElse : T_IF Expr T_LEFTBRACK Block T_RIGHTBRACK
 | T_IF Expr T_LEFTBRACK Block T_RIGHTBRACK T_ELSE T_LEFTBRACK Block T_RIGHTBRACK
 	;
 
-DoWhile : T_WHILE Expr T_LEFTBRACK Block T_RIGHTBRACK
-| T_DO T_LEFTBRACK Block T_RIGHTBRACK T_WHILE Expr T_SEMIC
+DoWhile : T_DO T_LEFTBRACK Block T_RIGHTBRACK T_WHILE Expr T_SEMIC
+	;
+
+While: T_WHILE Expr T_LEFTBRACK Block T_RIGHTBRACK
 	;
 
 Block : Block Statement |  %empty

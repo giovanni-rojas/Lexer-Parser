@@ -44,8 +44,8 @@
 "false"           { yylval.integer_ptr = new IntegerNode(0); return T_FALSE; }
 "print"           { return T_PRINT; }
 "return"          { return T_RETURN; }
-"int"             { return T_INT; }
-"bool"            { return T_BOOL; }
+"integer"             { return T_INT; }
+"boolean"            { return T_BOOL; }
 "new"             { return T_NEW; }
 "not"             { return T_NOT; }
 "none"            { return T_NONE; }

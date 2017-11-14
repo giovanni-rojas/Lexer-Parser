@@ -54,12 +54,15 @@
 %token T_WHILE
 %token T_EXTENDS
 
+ //precedence rules
+
 %left T_OR
 %left T_AND
 %left T_GREAT T_GREATEQ T_EQUALEQ
 %left T_PLUS T_MINUS
 %left T_MULTIPLY T_DIVIDE
 %precedence T_NOT T_UMINUS
+
 
 /* WRITEME: Specify types for all nonterminals and necessary terminals here */
 
@@ -68,14 +71,15 @@
 %type <methodcall_ptr> MethodCall;
 %type <identifier_ptr> T_ID;
 %type <assignment_ptr> Assignment;
-%type <expression_list_ptr> Parameter;
+%type <expression_list_ptr> ParameterList Parameter;
 %type <parameter_ptr> Argument;
 %type <parameter_list_ptr> Args Arg;
 %type <integer_ptr> T_INTVALUE T_TRUE T_FALSE
 %type <statement_ptr> Statement;
 %type <statement_list_ptr> Block Statements;
-%type <dowhile_ptr> DOWHILE;
-%type <ifelse_ptr> IFELSE;
+%type <dowhile_ptr> DoWhile;
+%type <while_ptr> While;
+%type <ifelse_ptr> IfElse;
 %type <declaration_list_ptr> MemberList DeclarationList;
 %type <declaration_ptr> Member;
 %type <identifier_list_ptr> Declaration;
@@ -94,108 +98,127 @@
 /* WRITEME: This rule is a placeholder. Replace it with your grammar
             rules from Project 3 */
 
-Start : ClassList
+Start : ClassList {$$ = new ProgramNode($1); astRoot = $$;}
 	;
 
-CClassList : Class ClassList | Class
+/* WRITME: Write your Bison grammar specification here */
+
+ClassList : Class ClassList {$$ = $2; $$->push_front($1);}
+| Class {$$ = new std::list<ClassNode*>(); $$->push_back($1);}
 	;
 
-Class : T_ID T_LEFTBRACK MemberList MethodList T_RIGHTBRACK 
-	| T_ID T_EXTENDS T_ID T_LEFTBRACK MemberList MethodList T_RIGHTBRACK 
+Class : T_ID T_LEFTBRACK MemberList MethodList T_RIGHTBRACK {$$ = new ClassNode($1,NULL,$3,$4);}
+| T_ID T_EXTENDS T_ID T_LEFTBRACK MemberList MethodList T_RIGHTBRACK {$$ = new ClassNode($1,$3,$5,$6);}
 
 	;
 
-Type : T_INT | T_BOOL | T_ID
+Type : T_INT {$$ = new IntegerTypeNode();}
+| T_BOOL {$$ = new BooleanTypeNode();}
+| T_ID {$$ = new ObjectTypeNode($1);}
 	;
 
-MemberList : MemberList Member
- 	|%empty
+MemberList : MemberList Member {$$ = $1; $$->push_back($2);}
+|%empty {$$ = new std::list<DeclarationNode*>();}
 	;
 
-Member : Type T_ID T_SEMIC
+Member : Type T_ID T_SEMIC {$$ = new DeclarationNode($1, new std::list<IdentifierNode*>(1, $2));}
 	;	
 
-MethodList : Method MethodList
-	| %empty
+MethodList : Method MethodList {$$ = $2; $$->push_front($1);}
+| %empty {$$ = new std::list<MethodNode*>();}
 	;
 
-Method :  T_ID T_LEFTPAREN Args T_RIGHTPAREN T_ARROW ReturnT T_LEFTBRACK Body T_RIGHTBRACK
+Method :  T_ID T_LEFTPAREN Args T_RIGHTPAREN T_ARROW ReturnT T_LEFTBRACK Body T_RIGHTBRACK {$$ = new MethodNode($1,$3,$6,$8);}
 	;
 
-Args : Arg | %empty
+Args : Arg {$$ = $1;}
+| %empty {$$ = new std::list<ParameterNode*>();}
 	;
 
-Arg : Arg T_COMMA Argument | Argument 
+Arg : Arg T_COMMA Argument {$$ = $1; $$->push_back($3);}
+| Argument {$$ = new std::list<ParameterNode*>(); $$->push_back($1);}
 	;
 
-Argument : Type T_ID
+Argument : Type T_ID {$$ = new ParameterNode($1,$2);}
 	;
 
-ReturnT : Type | T_NONE
+ReturnT : Type {$$ = $1;}
+| T_NONE {$$ = new NoneNode();}
 	;
 
-Body : DeclarationList Statements Return
+Body : DeclarationList Statements Return {$$ = new MethodBodyNode($1,$2,$3);}
 	;
 
-DeclarationList : %empty | DeclarationList Type Declaration T_SEMIC
+DeclarationList : DeclarationList Type Declaration T_SEMIC {$$=$1; $$->push_back(new DeclarationNode($2,$3));}
+| %empty {$$ = new std::list<DeclarationNode*>();}
+;
+
+Declaration : Declaration T_COMMA T_ID {$$ = $1; $$->push_back($3);}
+| T_ID {$$ = new std::list<IdentifierNode*>(); $$->push_back($1);}
 	;
 
-Declaration : Declaration T_COMMA T_ID | T_ID 
+Statements : Statement Statements {$$ = $2; $$->push_front($1);}
+| %empty {$$ = new std::list<StatementNode*>();}
 	;
 
-Statements : Statement Statements | %empty
+Statement : Assignment {$$ = $1;}| IfElse {$$ = $1;} | DoWhile {$$ = $1;}| While {$$ = $1;}| MethodCall {$$ = new CallNode($1);}| T_PRINT Expr T_SEMIC {$$ = new PrintNode($2);}
 	;
 
-Statement : Assignment | IfElse | DoWhile | While| MethodCall | T_PRINT Expr T_SEMIC
+Assignment : T_ID T_EQUAL Expr T_SEMIC {$$ = new AssignmentNode($1,NULL,$3);}
+|T_ID T_DOT T_ID T_EQUAL Expr T_SEMIC {$$ = new AssignmentNode($1, $3, $5);}
 	;
 
-Assignment : T_ID T_EQUAL Expr T_SEMIC | T_ID T_DOT T_ID T_EQUAL Expr T_SEMIC
+IfElse : T_IF Expr T_LEFTBRACK Block T_RIGHTBRACK {$$ = new IfElseNode($2, $4, NULL);}
+| T_IF Expr T_LEFTBRACK Block T_RIGHTBRACK T_ELSE T_LEFTBRACK Block T_RIGHTBRACK {$$ = new IfElseNode($2, $4, $8);}
 	;
 
-IfElse : T_IF Expr T_LEFTBRACK Block T_RIGHTBRACK
-| T_IF Expr T_LEFTBRACK Block T_RIGHTBRACK T_ELSE T_LEFTBRACK Block T_RIGHTBRACK
+DoWhile : T_DO T_LEFTBRACK Block T_RIGHTBRACK T_WHILE T_LEFTPAREN Expr T_RIGHTPAREN T_SEMIC {$$ = new DoWhileNode($3,$7);}
 	;
 
-DoWhile : T_DO T_LEFTBRACK Block T_RIGHTBRACK T_WHILE Expr T_SEMIC
+While : T_WHILE Expr T_LEFTBRACK Block T_RIGHTBRACK {$$ = new WhileNode($2,$4);}
+;
+
+Block : Block Statement {$$->push_back($2);}
+|  Statement {$$ = new std::list<StatementNode*>(); $$->push_back($1);}
 	;
 
-While: T_WHILE Expr T_LEFTBRACK Block T_RIGHTBRACK
+Return : T_RETURN Expr T_SEMIC {$$ = new ReturnStatementNode($2);}
+| %empty {$$ = NULL;}
 	;
 
-Block : Block Statement |  %empty
+Expr :  Expr T_PLUS Expr {$$ = new PlusNode($1,$3);}
+|	Expr T_MINUS Expr {$$ = new MinusNode($1,$3);}
+|	Expr T_MULTIPLY Expr {$$ = new TimesNode($1,$3);}
+|	Expr T_DIVIDE Expr {$$ = new DivideNode($1,$3);}
+|	Expr T_GREAT Expr {$$ = new GreaterNode($1,$3);}
+|	Expr T_GREATEQ Expr {$$ = new GreaterEqualNode($1,$3);}
+|	Expr T_EQUALEQ Expr {$$ = new EqualNode($1, $3);}
+|	Expr T_AND Expr {$$ = new AndNode($1,$3);}
+|	Expr T_OR Expr {$$ = new OrNode($1,$3);}
+|	T_NOT Expr {$$ = new NotNode($2);}
+|	T_MINUS Expr %prec T_UMINUS {$$ = new NegationNode($2);}
+|	T_ID {$$ = new VariableNode($1);}
+|	T_ID T_DOT T_ID {$$ = new MemberAccessNode($1,$3);}
+|	MethodCall {$$ = $1;}
+|	T_LEFTPAREN Expr T_RIGHTPAREN {$$ = $2 ;}
+|	T_INTVALUE {$$ = new IntegerLiteralNode($1);}
+|	T_TRUE {$$ = new BooleanLiteralNode($1);}
+|	T_FALSE {$$ = new BooleanLiteralNode($1);}
+|	T_NEW T_ID {$$ = new NewNode($2,NULL);}
+|	T_NEW T_ID T_LEFTPAREN ParameterList T_RIGHTPAREN {$$ = new NewNode($2,$4);}
+;
+
+MethodCall : T_ID T_LEFTPAREN ParameterList T_RIGHTPAREN T_SEMIC {$$ = new MethodCallNode($1, NULL, $3);}
+| T_ID T_DOT T_ID T_LEFTPAREN ParameterList T_RIGHTPAREN T_SEMIC {$$ = new MethodCallNode($1, $3, $5);}
 	;
 
-Return : T_RETURN Expr T_SEMIC | %empty
+ParameterList: Parameter {$$ = $1;} | %empty {$$ = new std::list<ExpressionNode*>();}
+;
+
+Parameter : Parameter T_COMMA Expr {$$ = $1; $$->push_back($3);}
+   | Expr {$$ = new std::list<ExpressionNode*>();$$->push_back($1);}
 	;
 
-Expr :  Expr T_PLUS Expr
-	|	Expr T_MINUS Expr
-	|	Expr T_MULTIPLY Expr
-	|	Expr T_DIVIDE Expr
-	|	Expr T_GREAT Expr
-	|	Expr T_GREATEQ Expr
-	|	Expr T_EQUALEQ Expr
-	|	Expr T_AND Expr
-	|	Expr T_OR Expr
-	|	T_NOT Expr
-	|	T_MINUS Expr %prec T_UMINUS
-	|	T_ID
-	|	T_ID T_DOT T_ID
-	|	MethodCall
-	|	T_LEFTPAREN Expr T_RIGHTPAREN
-	|	T_INTVALUE
-	|	T_TRUE
-	|	T_FALSE
-	|	T_NEW T_ID
-	|	T_NEW T_ID T_LEFTPAREN Parameter T_RIGHTPAREN
-	;
-
-MethodCall : T_ID T_LEFTPAREN Args T_RIGHTPAREN T_SEMIC
-| T_ID T_DOT T_ID T_LEFTPAREN Args T_RIGHTPAREN T_SEMIC
-	;
-
-Parameter : Parameter T_COMMA Expr | Expr 
-	;
 
 %%
 
